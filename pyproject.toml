@@ -1,6 +1,6 @@
 [project]
 name = "maibot-xiaoheihe-adapter"
-version = "0.8.1"
+version = "0.8.2"
 description = "麦麦小黑盒社区帖子评论、@ 和回复适配器"
 requires-python = ">=3.12"
 dependencies = ["maibot-plugin-sdk>=2.12,<3", "httpx>=0.28,<1", "qrcode[pil]>=8,<9", "pydantic>=2.8,<3", "pillow>=9"]

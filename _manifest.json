@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "id": "maibot-team.xiaoheihe-adapter",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "name": "小黑盒社区适配器",
   "description": "接收小黑盒社区 @ 和回复，主动浏览、评论，并由 Replyer 生成多段浏览总结帖。",
   "author": {"name": "MaiBot Team", "url": "https://github.com/Mai-with-u"},

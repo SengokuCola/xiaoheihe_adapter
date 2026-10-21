@@ -1,9 +1,0 @@
-[plugin]
-enabled = true
-config_version = "0.1.1"
-
-[community]
-poll_interval = 60
-max_pages = 50
-reply_max_chars = 500
-context_max_chars = 6000
