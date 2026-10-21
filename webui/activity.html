@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>小黑盒互动记录</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { padding: 20px; line-height: 1.6; }
+    main { max-width: 1240px; margin: auto; }
+    h2, h3, p { margin: 0; } h2, h3 { font-family: var(--maibot-font-display); }
+    h2 { font-size: 20px; } h3 { font-size: 16px; }
+    button, input, select { font: inherit; } button { color: inherit; }
+    .row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+    .between { justify-content: space-between; } .muted { color: var(--maibot-muted); font-size: 13px; }
+    .toolbar { margin-bottom: 14px; } .overview { margin: 10px 0 18px; }
+    .layout { display: grid; grid-template-columns: minmax(250px, 340px) minmax(0, 1fr); gap: 18px; align-items: start; }
+    .sidebar .maibot-input, .sidebar .maibot-select { width: 100%; min-width: 0; margin-bottom: 10px; }
+    .post-list { display: grid; gap: 8px; margin: 8px 0 14px; max-height: 640px; overflow-y: auto; padding: 2px 6px 6px 2px; }
+    .post-list .post-choice { display: block; width: 100%; text-align: left; padding: 12px; white-space: normal; overflow-wrap: anywhere; }
+    .post-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-weight: 600; margin-bottom: 5px; }
+    .post-meta { display: block; font-size: 12px; margin-top: 5px; opacity: .8; }
+    .preview { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13px; opacity: .8; }
+    .pager { font-size: 12px; gap: 6px; } .pager button { padding: 5px 9px; }
+    .empty { padding: 40px 16px; text-align: center; color: var(--maibot-muted); }
+    .thread-heading { margin-bottom: 14px; } .thread-heading h2 { overflow-wrap: anywhere; }
+    .counts { margin-top: 7px; }
+    .link-row { margin-top: 12px; display: flex; gap: 8px; }
+    .link-row input { flex: 1; min-width: 0; font-size: 12px; }
+    .tabs { margin: 16px 0; gap: 6px; } .tabs button { padding: 6px 12px; }
+    .timeline { display: grid; gap: 12px; }
+    .timeline .event { padding: 16px; min-width: 0; }
+    .timeline .event.out { border-left: 4px solid var(--maibot-primary); }
+    .event-meta { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 9px; font-size: 13px; }
+    .speaker { font-weight: 600; } .state { color: var(--maibot-muted); font-size: 12px; }
+    .state.attention, #message.error { color: var(--maibot-danger); }
+    .body { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.8; font: inherit; margin: 8px 0 0; }
+    .reply-label { color: var(--maibot-muted); font-size: 12px; margin-bottom: 6px; }
+    details summary { cursor: pointer; color: var(--maibot-muted); font-size: 13px; }
+    .event details { margin-top: 10px; } .event details button { margin-top: 8px; }
+    #accountPanel { margin-bottom: 18px; } #accountPanel summary { font-weight: 600; }
+    #accountPanel .row, #accountPanel p { margin-top: 10px; }
+    #qrImage { max-width: 220px; width: 100%; margin-top: 12px; background: white; }
+    #message { min-height: 24px; margin-bottom: 10px; white-space: pre-wrap; }
+    [hidden] { display: none !important; }
+    @media (max-width: 760px) {
+      body { padding: 12px; } .layout { grid-template-columns: 1fr; }
+      .post-list { max-height: 300px; } .link-row { flex-wrap: wrap; }
+      .link-row input { flex-basis: 100%; } .sidebar.maibot-card { padding: 14px; }
+    }
+  </style>
+</head>
+<body class="maibot-page"><main>
+  <div class="toolbar row between">
+    <div><p>按帖子查看麦麦读过什么、收到什么、回复了什么。</p><p id="accountLine" class="muted">正在读取账号…</p></div>
+    <div class="row"><button type="button" id="settings" class="maibot-button">浏览与发帖设置</button><button type="button" id="refresh" class="maibot-button">刷新记录</button><button type="button" id="manage" class="maibot-button">账号管理</button></div>
+  </div>
+  <details id="accountPanel" class="maibot-card">
+    <summary>账号、连接与扫码登录</summary>
+    <p id="connectionError" class="state attention"></p>
+    <div class="row"><button type="button" id="login" class="maibot-button maibot-button-primary">生成登录二维码</button><button type="button" id="cancel" class="maibot-button" hidden>取消扫码</button><button type="button" id="reconnect" class="maibot-button">重新连接</button></div>
+    <p id="loginMessage" class="muted"></p><img id="qrImage" alt="小黑盒登录二维码" hidden><p id="remaining" class="muted"></p>
+  </details>
+  <p id="overview" class="overview muted"></p><p id="message" role="status" aria-live="polite"></p>
+  <div class="layout">
+    <section class="sidebar maibot-card" aria-label="帖子列表">
+      <input id="search" class="maibot-input" type="search" maxlength="200" placeholder="搜索帖子标题、ID 或发言人" aria-label="搜索帖子">
+      <select id="filter" class="maibot-select" aria-label="筛选帖子"><option value="all">全部帖子</option><option value="replied">麦麦已回帖</option><option value="attention">有失败、受限或待核对记录</option></select>
+      <div id="posts" class="post-list"></div><div id="postPager" class="row between pager"></div>
+    </section>
+    <section id="thread" aria-label="帖子互动时间线"><p class="empty">选择一篇帖子，查看它的完整互动记录。</p></section>
+  </div>
+</main>
+<script>
+  const byId = id => document.getElementById(id);
+  const make = (tag, className, text) => {
+    const element = document.createElement(tag);
+    if (className) element.className = className;
+    if (text !== undefined) element.textContent = String(text);
+    return element;
+  };
+  const attention = new Set(['error', 'unknown', 'blocked', 'sending']);
+  let accountId = '', selectedPost = '', postPage = 1, threadPage = 1, kind = 'all';
+  let busy = false, loginActive = false, searchTimer, lastPoll = 0;
+  let postsSnapshot = null, threadSnapshot = null, threadFingerprint = '';
+  const complete = new Map();
+  function message(text, error = false) { byId('message').textContent = text; byId('message').className = error ? 'error' : 'muted'; }
+  function button(text, handler) {
+    const element = make('button', 'maibot-button', text); element.type = 'button'; element.onclick = handler;
+    return element;
+  }
+  function controls() {
+    document.querySelectorAll('button').forEach(element => element.disabled = busy || element.dataset.unavailable === 'true');
+    byId('login').disabled = busy || loginActive;
+    byId('reconnect').disabled = busy || loginActive || !accountId;
+  }
+  async function run(work) {
+    if (busy) return;
+    busy = true; controls();
+    try { await work(); } catch (error) { message(String(error.message || error), true); }
+    finally { busy = false; controls(); }
+  }
+  function renderAccount(status) {
+    const nextAccount = status.has_account ? status.account_id : '';
+    if (nextAccount !== accountId) {
+      accountId = nextAccount; selectedPost = ''; postPage = 1; threadPage = 1;
+      postsSnapshot = null; threadSnapshot = null; threadFingerprint = ''; complete.clear();
+      byId('posts').replaceChildren(); byId('overview').textContent = '';
+      byId('thread').replaceChildren(make('p', 'empty', '选择一篇帖子，查看互动记录。'));
+    }
+    loginActive = status.login_active;
+    byId('accountLine').textContent = status.has_account ? `${status.account_name} · UID ${status.account_id} · ${status.connection}` : '尚未登录小黑盒';
+    byId('connectionError').textContent = status.connection_error;
+    byId('loginMessage').textContent = status.login_message;
+    byId('cancel').hidden = !loginActive;
+    byId('qrImage').hidden = !status.qr_image;
+    if (status.qr_image) byId('qrImage').src = status.qr_image; else byId('qrImage').removeAttribute('src');
+    byId('remaining').textContent = status.remaining_seconds ? `二维码剩余 ${status.remaining_seconds} 秒，扫码后请在手机确认。` : '';
+  }
+  function pager(container, data, earlier, later, unit = '条') {
+    const prev = button(earlier, () => {}), next = button(later, () => {});
+    prev.dataset.unavailable = String(data.page <= 1); next.dataset.unavailable = String(data.page >= data.pages);
+    container.replaceChildren(prev, make('span', 'muted', `${data.page} / ${data.pages} · ${data.total} ${unit}`), next);
+    return [prev, next];
+  }
+  function renderPosts(snapshot) {
+    if (snapshot.account_id !== accountId) return;
+    postsSnapshot = snapshot; postPage = snapshot.pagination.page;
+    const totals = snapshot.overview;
+    byId('overview').textContent = `${totals.posts} 篇帖子 · 收到 ${totals.received} 条评论 · 麦麦已回 ${totals.replied} 条 · ${totals.attention} 条失败、受限或待核对`;
+    const list = byId('posts'), scrollTop = list.scrollTop;
+    list.replaceChildren();
+    for (const post of snapshot.items) {
+      const choice = button('', () => run(async () => {
+        selectedPost = post.post_id; threadPage = 999999; kind = 'all'; threadFingerprint = '';
+        renderPosts(postsSnapshot); await loadThread();
+      }));
+      choice.classList.add('post-choice'); choice.setAttribute('aria-pressed', String(selectedPost === post.post_id));
+      choice.append(make('span', 'post-title', post.title || `未记录标题 · 帖子 ${post.post_id}`));
+      choice.append(make('span', 'preview', post.preview.replace(/\s+/g, ' ')));
+      choice.append(make('span', 'post-meta', `浏览 ${post.browsed} · 收到 ${post.received} · 已回 ${post.replied}` + (post.attention ? ` · 待查看 ${post.attention}` : '')));
+      choice.append(make('span', 'post-meta', post.last_time)); list.append(choice);
+    }
+    if (!snapshot.items.length) list.append(make('p', 'empty', accountId ? '没有符合条件的帖子。' : '登录后查看记录。'));
+    list.scrollTop = scrollTop;
+    const [prev, next] = pager(byId('postPager'), snapshot.pagination, '上一页', '下一页', '篇');
+    prev.onclick = () => run(async () => { postPage--; await loadPosts(); });
+    next.onclick = () => run(async () => { postPage++; await loadPosts(); });
+  }
+  function eventCard(item, openKeys) {
+    const key = item.direction + ':' + item.message;
+    const expanded = complete.get(key);
+    if (expanded && expanded.state === item.state && expanded.detail.startsWith(item.detail)) item = {...item, body: expanded.body, detail: expanded.detail, has_more: false};
+    const card = make('article', 'event maibot-card ' + item.direction);
+    const head = make('div', 'event-meta');
+    const who = item.direction === 'browse' ? '浏览记录' + (item.sender ? ' · 原帖作者：' + item.sender : '') : item.sender || item.direction_label;
+    head.append(make('span', 'speaker', who), make('time', 'muted', item.time)); card.append(head);
+    card.append(make('p', 'state' + (attention.has(item.state) ? ' attention' : ''), item.direction_label + ' · ' + item.state_label));
+    if (item.reply_label) card.append(make('p', 'reply-label', item.reply_label));
+    const body = make('div', 'body', item.body);
+    if (item.direction === 'browse') {
+      const context = make('details'); context.dataset.key = 'body:' + key; context.open = openKeys.has(context.dataset.key);
+      context.append(make('summary', '', '查看本次浏览的原帖与评论素材'), body); card.append(context);
+    } else card.append(body);
+    if (item.has_more) {
+      const expand = button(item.direction === 'browse' ? '展开完整浏览素材' : '展开完整内容', () => run(async () => {
+        const result = await maibot.query('record', {account_id: accountId, post_id: selectedPost, direction: item.direction, message: item.message});
+        if (result.account_id !== accountId) return;
+        complete.set(key, result.item); body.textContent = result.item.body; expand.remove();
+        if (detailText) detailText.textContent = result.item.detail;
+      }));
+      body.after(expand);
+    }
+    let detailText = null;
+    if (item.detail || item.anchor) {
+      const details = make('details'); details.dataset.key = 'detail:' + key; details.open = openKeys.has(details.dataset.key);
+      details.append(make('summary', '', attention.has(item.state) ? '查看具体原因' : '处理说明与回执'));
+      detailText = make('p', 'body', item.detail); details.append(detailText);
+      if (item.anchor) details.append(make('p', 'muted', '回复目标消息：' + item.anchor));
+      card.append(details);
+    }
+    return card;
+  }
+  function renderThread(snapshot) {
+    if (snapshot.account_id !== accountId || snapshot.post.post_id !== selectedPost) return;
+    threadSnapshot = snapshot; threadPage = snapshot.pagination.page;
+    const fingerprint = JSON.stringify([snapshot, kind]);
+    if (fingerprint === threadFingerprint) return;
+    threadFingerprint = fingerprint;
+    const openKeys = new Set([...byId('thread').querySelectorAll('details[open]')].map(element => element.dataset.key));
+    const post = snapshot.post, header = make('div', 'thread-heading');
+    header.append(make('h2', '', post.title || `未记录标题 · 帖子 ${post.post_id}`));
+    header.append(make('p', 'muted counts', `浏览 ${post.browsed} 次 · 收到 ${post.received} 条 · 已回 ${post.replied} 条 · 共 ${post.records} 条记录`));
+    const linkRow = make('div', 'link-row'), link = make('input', 'maibot-input');
+    link.readOnly = true; link.value = post.url; link.setAttribute('aria-label', '原帖链接');
+    link.onclick = () => link.select();
+    linkRow.append(link, button('选中原帖链接', () => { link.focus(); link.select(); message('原帖链接已选中，按 Ctrl+C（Mac 按 ⌘C）复制后打开。'); }));
+    header.append(linkRow, make('p', 'muted', '链接可选中复制，在浏览器或小黑盒中打开。时间均为北京时间。'));
+    const tabs = make('div', 'row tabs');
+    for (const [value, label] of [['all','全部记录'],['out','麦麦回帖'],['in','收到评论'],['browse','浏览记录']]) {
+      const tab = button(label, () => run(async () => { kind = value; threadPage = 999999; threadFingerprint = ''; await loadThread(); }));
+      tab.setAttribute('aria-pressed', String(kind === value)); tabs.append(tab);
+    }
+    const timeline = make('div', 'timeline');
+    snapshot.items.forEach(item => timeline.append(eventCard(item, openKeys)));
+    if (!snapshot.items.length) timeline.append(make('p', 'empty', '这个帖子还没有此类记录。'));
+    const paging = make('div', 'row between pager'); paging.style.marginTop = '16px';
+    const [prev, next] = pager(paging, snapshot.pagination, '较早记录', '较新记录');
+    prev.onclick = () => run(async () => { threadPage--; await loadThread(); });
+    next.onclick = () => run(async () => { threadPage++; await loadThread(); });
+    byId('thread').replaceChildren(header, tabs, timeline, paging);
+  }
+  async function loadPosts() {
+    renderPosts(await maibot.query('posts', {page: postPage, search: byId('search').value.trim(), status: byId('filter').value}));
+  }
+  async function loadThread() {
+    if (selectedPost) renderThread(await maibot.query('thread', {account_id: accountId, post_id: selectedPost, page: threadPage, kind}));
+  }
+  async function refresh() {
+    renderAccount(await maibot.query('status'));
+    await loadPosts();
+    if (!selectedPost && postsSnapshot?.items.length) {
+      selectedPost = postsSnapshot.items[0].post_id; threadPage = 999999; renderPosts(postsSnapshot);
+    }
+    await loadThread(); lastPoll = Date.now();
+  }
+  byId('settings').onclick = () => maibot.navigate('browse');
+  byId('manage').onclick = () => byId('accountPanel').open = !byId('accountPanel').open;
+  byId('refresh').onclick = () => run(async () => { await refresh(); message('记录已更新。'); });
+  for (const action of ['login', 'cancel', 'reconnect']) byId(action).onclick = () => run(async () => {
+    renderAccount(await maibot.action(action)); byId('accountPanel').open = true;
+  });
+  function scheduleSearch() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      if (busy) { scheduleSearch(); return; }
+      run(async () => {
+        postPage = 1; await loadPosts();
+        if (!postsSnapshot.items.some(post => post.post_id === selectedPost)) {
+          selectedPost = postsSnapshot.items[0]?.post_id || ''; threadPage = 999999; threadFingerprint = '';
+          renderPosts(postsSnapshot);
+          if (selectedPost) await loadThread();
+          else byId('thread').replaceChildren(make('p', 'empty', '没有符合条件的帖子。'));
+        }
+      });
+    }, 250);
+  }
+  byId('search').oninput = scheduleSearch; byId('filter').onchange = scheduleSearch;
+  maibot.ready.then(async () => {
+    await run(refresh);
+    setInterval(() => {
+      if (document.hidden || busy) return;
+      run(async () => {
+        if (loginActive) renderAccount(await maibot.query('status'));
+        if (Date.now() - lastPoll >= 15000) await refresh();
+      });
+    }, 3000);
+  });
+</script>
+</body>
+</html>

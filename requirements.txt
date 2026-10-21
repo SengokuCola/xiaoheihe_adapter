@@ -1,0 +1,5 @@
+maibot-plugin-sdk>=2.12,<3
+httpx>=0.28,<1
+qrcode[pil]>=8,<9
+pydantic>=2.8,<3
+pillow>=9

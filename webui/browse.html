@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>小黑盒主动浏览</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { padding: 24px; line-height: 1.6; }
+    main { max-width: 1000px; margin: auto; }
+    h1 { font-size: 24px; margin: 0 0 6px; } h2 { font-size: 17px; margin: 0 0 12px; }
+    h1, h2 { font-family: var(--maibot-font-display); }
+    p { margin: 6px 0; } .muted { color: var(--maibot-muted); font-size: 13px; }
+    section { margin: 20px 0; }
+    .row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+    .between { justify-content: space-between; } .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; }
+    button, input, select { font: inherit; color: inherit; }
+    input[type="text"], input[type="number"], select { width: 100%; }
+    #summaryPreview { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 440px; overflow: auto; }
+    input[type="checkbox"] { accent-color: var(--maibot-primary); width: 17px; height: 17px; }
+    label { display: block; } .topic { display: flex; gap: 10px; align-items: center; padding: 9px; border-radius: var(--maibot-radius); background: var(--maibot-soft); }
+    #topics { max-height: 340px; overflow: auto; margin-top: 12px; }
+    #selected { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+    #selected button { padding: 4px 10px; font-size: 13px; }
+    #message { min-height: 26px; white-space: pre-wrap; } #message.error, #warning, #summaryError { color: var(--maibot-danger); }
+    .stat strong { font-size: 23px; display: block; }
+    @media (max-width: 560px) { body { padding: 12px; } section { padding: 14px; } }
+  </style>
+</head>
+<body class="maibot-page"><main>
+  <div class="row between"><div><h1>小黑盒主动浏览</h1><p class="muted">选好分区，让麦麦按自己的兴趣决定是否参与讨论。</p></div><button id="account">账号与互动记录</button></div>
+  <section><div class="grid">
+    <div class="stat"><span>主动浏览状态</span><strong id="state">加载中</strong><span class="muted" id="uid"></span></div>
+    <div class="stat"><span>今日帖子判断数</span><strong id="decisions">—</strong></div>
+    <div class="stat"><span>今日尝试评论帖子数</span><strong id="attempts">—</strong></div>
+  </div><p class="muted" id="next"></p><p id="warning" role="status"></p>
+    <button type="button" id="reset" disabled>重置今日浏览次数</button>
+    <p class="muted">仅重置今天的帖子判断统计，不影响每帖评论次数和已浏览帖子的去重记录。</p>
+    <p class="muted">每帖默认最多成功评论 3 次；后续每条普通回复麦麦的评论增加 3 次额度。已有聊天流的 @ 仅追加消息，不另开会话或额外召唤，也不增加、不消耗主动次数。</p>
+  </section>
+  <form id="form">
+    <section>
+      <h2>浏览分区</h2>
+      <div class="row"><button type="button" id="refresh">刷新小黑盒分区</button><span class="muted">先登录并连接，再读取真实分区目录。最多选择 20 个。</span></div>
+      <div id="selected" aria-label="已选择的分区"></div>
+      <input type="text" id="search" placeholder="搜索分区名称或 ID" aria-label="搜索分区">
+      <p class="muted" id="topicCount"></p><div id="topics" class="grid"></div>
+    </section>
+    <section>
+      <h2>浏览和互动频率</h2>
+      <label class="row"><input type="checkbox" id="enabled">启用主动浏览及自主评论</label>
+      <p class="muted">开启后，麦麦可以直接发表评论，也可以选择不参与。浏览和评论没有每日次数上限。</p>
+      <div class="grid" style="margin-top:16px">
+        <label>浏览间隔（秒）<input type="number" id="interval_seconds" min="60" max="86400" step="1" required><span class="muted">默认 300 秒，实际检查随通知轮询运行。</span></label>
+        <label>每轮最多判断帖子数<input type="number" id="posts_per_round" min="1" max="5" step="1" required><span class="muted">同一帖子不会被反复主动判断。</span></label>
+      </div>
+    </section>
+    <section>
+      <h2>浏览感想与主动发帖</h2>
+      <label class="row"><input type="checkbox" id="summary_enabled">允许麦麦自动发布总结帖</label>
+      <p class="muted">Replyer 根据实际浏览材料和已成功发送的评论生成标题、多段正文，再发布为一篇帖子。按账号累计新材料，同一篇浏览帖子仅计一次，排除视频帖和处理失败的帖子。</p>
+      <div class="grid" style="margin-top:16px">
+        <label>触发方式<select id="summary_trigger"><option value="count">每浏览固定数量帖子</option><option value="interval">每隔一段时间</option><option value="either">数量或时间先达到时</option></select></label>
+        <label>累计帖子数<input type="number" id="summary_every_posts" min="1" max="100" step="1" required></label>
+        <label>总结周期（小时）<input type="number" id="summary_interval_hours" min="1" max="168" step="1" required></label>
+        <label>发布分区<select id="summary_topic_id"><option value="">请选择分区</option></select></label>
+        <label>长文模型<input type="text" id="summary_model_name" maxlength="200" placeholder="宿主模型名称；留空使用默认 Replyer 模型"><span class="muted">聊天专用微调模型可能不适合长文，请填写已在宿主配置的通用模型名称。</span></label>
+      </div>
+      <p id="summaryStatus" role="status"></p><p id="summaryError" role="status"></p>
+      <a id="summaryLink" target="_blank" rel="noopener noreferrer" hidden>查看已发布的帖子</a>
+      <div id="summaryPreview"></div>
+      <div class="row" style="margin-top:12px"><button type="button" id="summaryRetry" hidden>重试本轮总结</button><button type="button" id="summaryDiscard" hidden>跳过本轮总结</button></div>
+    </section>
+    <div class="row"><button class="primary" type="submit" id="save" disabled>保存并应用</button><button type="button" id="reload">重新读取已保存配置</button></div>
+    <p id="message" role="status" aria-live="polite"></p>
+    <p class="muted">自动排除带视频的帖子，不占今日判断次数。配置按登录账号保存。关闭后，尚未发出的主动评论也会被拦截。浏览结果和发送回执可在“账号与互动记录”中查看；已提交判断不等于已发表评论。</p>
+  </form>
+</main>
+<script>
+  // 使用宿主桥接的组件外观，随主题同步颜色、纹理、字体、边框和阴影。
+  document.querySelectorAll('section').forEach(element => element.classList.add('maibot-card'));
+  document.querySelectorAll('button').forEach(element => element.classList.add('maibot-button'));
+  document.querySelectorAll('button.primary').forEach(element => element.classList.add('maibot-button-primary'));
+  document.querySelectorAll('input[type="text"], input[type="number"]').forEach(element => element.classList.add('maibot-input'));
+  document.querySelectorAll('select').forEach(element => element.classList.add('maibot-select'));
+  document.querySelectorAll('.stat strong').forEach(element => element.classList.add('maibot-number'));
+  const byId = id => document.getElementById(id);
+  const numeric = ['interval_seconds', 'posts_per_round'];
+  let accountId = '', selected = new Set(), topics = [], busy = false, polling = false;
+  function message(text, error = false) { byId('message').textContent = text; byId('message').className = error ? 'error' : ''; }
+  function controls() {
+    ['save', 'refresh', 'reload', 'reset', 'summaryRetry', 'summaryDiscard'].forEach(id => byId(id).disabled = busy || !accountId);
+  }
+  function renderTopics() {
+    const destination = byId('summary_topic_id').value;
+    byId('summary_topic_id').replaceChildren(new Option('请选择分区', ''));
+    for (const topic of topics) byId('summary_topic_id').add(new Option(topic.name + ' · ' + topic.id, topic.id));
+    if (destination && !topics.some(topic => topic.id === destination)) byId('summary_topic_id').add(new Option(destination, destination));
+    byId('summary_topic_id').value = destination;
+    byId('selected').replaceChildren();
+    const names = new Map(topics.map(topic => [topic.id, topic.name]));
+    for (const id of selected) {
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'maibot-button';
+      button.textContent = (names.get(id) || id) + ' ×';
+      button.setAttribute('aria-label', '移除分区 ' + (names.get(id) || id));
+      button.onclick = () => { selected.delete(id); renderTopics(); };
+      byId('selected').append(button);
+    }
+    const search = byId('search').value.trim().toLowerCase();
+    const filtered = topics.filter(topic => (topic.name + topic.id + topic.group).toLowerCase().includes(search));
+    byId('topicCount').textContent = `已选择 ${selected.size} 个 · 匹配 ${filtered.length} 个分区` + (filtered.length > 100 ? '，显示前 100 个，请搜索缩小范围。' : '');
+    byId('topics').replaceChildren();
+    for (const topic of filtered.slice(0, 100)) {
+      const label = document.createElement('label'); label.className = 'topic';
+      const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = selected.has(topic.id);
+      checkbox.onchange = () => {
+        if (checkbox.checked && selected.size >= 20) { checkbox.checked = false; message('最多选择 20 个分区。', true); return; }
+        if (checkbox.checked) selected.add(topic.id); else selected.delete(topic.id);
+        renderTopics();
+      };
+      const text = document.createElement('span'); text.textContent = topic.name + (topic.group ? ' · ' + topic.group : '') + ' (#' + topic.id + ')';
+      label.append(checkbox, text); byId('topics').append(label);
+    }
+  }
+  function render(snapshot, resetForm) {
+    const changedAccount = accountId !== snapshot.account_id;
+    accountId = snapshot.account_id;
+    topics = snapshot.topics;
+    byId('state').textContent = snapshot.settings.enabled ? '已开启' : '已关闭';
+    byId('uid').textContent = accountId ? '账号 UID：' + accountId : '请先登录小黑盒账号';
+    byId('decisions').textContent = snapshot.status.today_decisions;
+    byId('attempts').textContent = snapshot.status.today_attempts;
+    byId('warning').textContent = snapshot.error;
+    const summary = snapshot.summary_status, latest = summary.latest;
+    const labels = {generating:'Replyer 正在生成', retry:'等待重试', ready:'内容已生成', sending:'正在发布', sent:'发布成功', error:'生成或准备失败', failed:'发布被拒绝', unknown:'发布结果待核对', discarded:'本轮已跳过'};
+    byId('summaryStatus').textContent = `待总结 ${summary.pending_posts} 帖` + (latest ? ' · ' + labels[latest.state] : ' · 尚未生成总结');
+    byId('summaryError').textContent = latest ? latest.error : '';
+    byId('summaryPreview').textContent = latest && latest.draft ? latest.draft.title + '\n\n' + latest.draft.paragraphs.join('\n\n') : '';
+    byId('summaryLink').hidden = !latest || !latest.post;
+    if (latest && latest.post) byId('summaryLink').href = 'https://xiaoheihe.cn/app/bbs/link/' + encodeURIComponent(latest.post);
+    byId('summaryRetry').hidden = !latest || !['error', 'failed'].includes(latest.state);
+    byId('summaryDiscard').hidden = !latest || !['error', 'failed', 'unknown'].includes(latest.state);
+    byId('next').textContent = snapshot.settings.enabled && snapshot.status.next_scan ? '下次浏览不早于：' + new Date(snapshot.status.next_scan * 1000).toLocaleString('zh-CN', {timeZone: 'Asia/Shanghai'}) + '（北京时间）' : '';
+    if (resetForm || changedAccount) {
+      selected = new Set(snapshot.settings.topic_ids);
+      byId('enabled').checked = snapshot.settings.enabled;
+      for (const key of numeric) byId(key).value = snapshot.settings[key];
+      byId('summary_enabled').checked = snapshot.settings.summary.enabled;
+      byId('summary_trigger').value = snapshot.settings.summary.trigger;
+      byId('summary_every_posts').value = snapshot.settings.summary.every_posts;
+      byId('summary_interval_hours').value = snapshot.settings.summary.interval_hours;
+      byId('summary_model_name').value = snapshot.settings.summary.model_name;
+      const topicId = snapshot.settings.summary.topic_id;
+      if (topicId && ![...byId('summary_topic_id').options].some(option => option.value === topicId)) byId('summary_topic_id').add(new Option(topicId, topicId));
+      byId('summary_topic_id').value = topicId;
+      if (changedAccount) message('已读取当前账号的配置。');
+    }
+    renderTopics(); controls();
+  }
+  async function run(action) {
+    if (busy) return;
+    busy = true; controls();
+    try { await action(); } catch (error) { message(String(error.message || error), true); }
+    finally { busy = false; controls(); }
+  }
+  byId('search').oninput = renderTopics;
+  byId('account').onclick = () => maibot.navigate('account');
+  byId('refresh').onclick = () => run(async () => {
+    message('正在读取小黑盒分区…'); render(await maibot.action('topics'), false); message('分区目录已更新。');
+  });
+  byId('reload').onclick = () => run(async () => { render(await maibot.query('settings'), true); message('已重新读取配置。'); });
+  byId('reset').onclick = () => {
+    const account_id = accountId;
+    run(async () => {
+      render(await maibot.action('reset', {account_id}), false);
+      message('今日浏览统计已重置。每帖评论限制和帖子去重记录已保留。');
+    });
+  };
+  byId('form').onsubmit = event => {
+    event.preventDefault();
+    const settings = {enabled: byId('enabled').checked, topic_ids: [...selected]};
+    for (const key of numeric) settings[key] = Number(byId(key).value);
+    settings.summary = {
+      enabled: byId('summary_enabled').checked, trigger: byId('summary_trigger').value,
+      every_posts: Number(byId('summary_every_posts').value), interval_hours: Number(byId('summary_interval_hours').value),
+      topic_id: byId('summary_topic_id').value,
+      model_name: byId('summary_model_name').value.trim(),
+    };
+    const account_id = accountId;
+    run(async () => { render(await maibot.action('save', {settings, account_id}), true); message('已保存并应用。'); });
+  };
+  for (const [id, action] of [['summaryRetry', 'retry'], ['summaryDiscard', 'discard']]) byId(id).onclick = () => {
+    const account_id = accountId;
+    run(async () => { render(await maibot.action('digest', {account_id, action}), false); message('总结任务已更新。'); });
+  };
+  async function poll(reset = false) {
+    if (busy || polling) return;
+    polling = true;
+    try { render(await maibot.query('settings'), reset); }
+    catch (error) { message(String(error.message || error), true); }
+    finally { polling = false; }
+  }
+  maibot.ready.then(async () => { await poll(true); setInterval(() => { if (!document.hidden) poll(); }, 15000); });
+</script>
+</body></html>

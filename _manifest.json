@@ -1,0 +1,26 @@
+{
+  "manifest_version": 2,
+  "id": "maibot-team.xiaoheihe-adapter",
+  "version": "0.8.1",
+  "name": "小黑盒社区适配器",
+  "description": "接收小黑盒社区 @ 和回复，主动浏览、评论，并由 Replyer 生成多段浏览总结帖。",
+  "author": {"name": "MaiBot Team", "url": "https://github.com/Mai-with-u"},
+  "urls": {
+    "repository": "https://github.com/SengokuCola/xiaoheihe_adapter",
+    "homepage": "https://github.com/SengokuCola/xiaoheihe_adapter",
+    "issues": "https://github.com/SengokuCola/xiaoheihe_adapter/issues"
+  },
+  "license": "MIT",
+  "plugin_type": "adapter",
+  "host_application": {"min_version": "1.3.6", "max_version": "1.3.99"},
+  "sdk": {"min_version": "2.12.0", "max_version": "2.99.99"},
+  "dependencies": [
+    {"type": "python_package", "name": "httpx", "version_spec": ">=0.28,<1"},
+    {"type": "python_package", "name": "qrcode", "version_spec": ">=8,<9"},
+    {"type": "python_package", "name": "pillow", "version_spec": ">=9"},
+    {"type": "python_package", "name": "pydantic", "version_spec": ">=2.8,<3"}
+  ],
+  "capabilities": ["chat.open_session", "chat.get_group_streams", "maisaka.context.append", "maisaka.proactive.trigger", "maisaka.reply.generate"],
+  "i18n": {"default_locale": "zh-CN", "supported_locales": ["zh-CN"]},
+  "changelog": "CHANGELOG.md"
+}

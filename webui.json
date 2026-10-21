@@ -1,0 +1,249 @@
+{
+  "schema_version": 2,
+  "required_capabilities": [
+    "declarative_basic",
+    "custom_pages",
+    "structured_arguments"
+  ],
+  "pages": [
+    {
+      "id": "account",
+      "title": "小黑盒互动记录",
+      "description": "按帖子查看浏览、收到的评论和麦麦回帖，复制原帖链接。",
+      "placement": "sidebar",
+      "icon": "list",
+      "mode": "custom",
+      "entry": "webui/activity.html",
+      "queries": {
+        "status": {
+          "api": "community_status",
+          "version": "1"
+        },
+        "posts": {
+          "api": "community_posts",
+          "version": "1",
+          "parameters": {
+            "page": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            },
+            "search": {
+              "type": "string",
+              "max_length": 200
+            },
+            "status": {
+              "type": "string",
+              "choices": [
+                "all",
+                "replied",
+                "attention"
+              ]
+            }
+          }
+        },
+        "thread": {
+          "api": "community_post_records",
+          "version": "1",
+          "parameters": {
+            "account_id": {
+              "type": "string",
+              "required": true,
+              "max_length": 100
+            },
+            "post_id": {
+              "type": "string",
+              "required": true,
+              "max_length": 32
+            },
+            "page": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            },
+            "kind": {
+              "type": "string",
+              "choices": [
+                "all",
+                "browse",
+                "in",
+                "out"
+              ]
+            }
+          }
+        },
+        "record": {
+          "api": "community_record_detail",
+          "version": "1",
+          "parameters": {
+            "account_id": {
+              "type": "string",
+              "required": true,
+              "max_length": 100
+            },
+            "post_id": {
+              "type": "string",
+              "required": true,
+              "max_length": 32
+            },
+            "direction": {
+              "type": "string",
+              "required": true,
+              "choices": [
+                "browse",
+                "in",
+                "out"
+              ]
+            },
+            "message": {
+              "type": "string",
+              "required": true,
+              "max_length": 200
+            }
+          }
+        }
+      },
+      "actions": {
+        "login": {
+          "api": "community_login",
+          "version": "1"
+        },
+        "cancel": {
+          "api": "community_cancel_login",
+          "version": "1"
+        },
+        "reconnect": {
+          "api": "community_reconnect",
+          "version": "1"
+        }
+      }
+    },
+    {
+      "id": "browse",
+      "title": "小黑盒主动浏览",
+      "description": "选择浏览分区，配置自主评论和浏览总结发帖。",
+      "placement": "sidebar",
+      "icon": "list",
+      "mode": "custom",
+      "entry": "webui/browse.html",
+      "queries": {
+        "settings": {
+          "api": "community_browse_status",
+          "version": "1"
+        }
+      },
+      "actions": {
+        "digest": {
+          "api": "community_digest_action",
+          "version": "1",
+          "parameters": {
+            "account_id": {
+              "type": "string",
+              "required": true,
+              "max_length": 100
+            },
+            "action": {
+              "type": "string",
+              "required": true,
+              "max_length": 16
+            }
+          }
+        },
+        "topics": {
+          "api": "community_browse_topics",
+          "version": "1"
+        },
+        "reset": {
+          "api": "community_browse_reset",
+          "version": "1",
+          "parameters": {
+            "account_id": {
+              "type": "string",
+              "required": true,
+              "max_length": 100
+            }
+          }
+        },
+        "save": {
+          "api": "community_browse_save",
+          "version": "1",
+          "parameters": {
+            "account_id": {
+              "type": "string",
+              "required": true,
+              "max_length": 100
+            },
+            "settings": {
+              "type": "object",
+              "required": true,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "required": true
+                },
+                "topic_ids": {
+                  "type": "array",
+                  "required": true,
+                  "max_items": 20,
+                  "items": {
+                    "type": "string",
+                    "max_length": 32
+                  }
+                },
+                "interval_seconds": {
+                  "type": "integer",
+                  "required": true,
+                  "minimum": 60,
+                  "maximum": 86400
+                },
+                "posts_per_round": {
+                  "type": "integer",
+                  "required": true,
+                  "minimum": 1,
+                  "maximum": 5
+                },
+                "summary": {
+                  "type": "object",
+                  "required": true,
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean",
+                      "required": true
+                    },
+                    "trigger": {
+                      "type": "string",
+                      "required": true,
+                      "max_length": 16
+                    },
+                    "every_posts": {
+                      "type": "integer",
+                      "required": true,
+                      "minimum": 1,
+                      "maximum": 100
+                    },
+                    "interval_hours": {
+                      "type": "integer",
+                      "required": true,
+                      "minimum": 1,
+                      "maximum": 168
+                    },
+                    "topic_id": {
+                      "type": "string",
+                      "required": true,
+                      "max_length": 32
+                    },
+                    "model_name": {
+                      "type": "string",
+                      "required": true,
+                      "max_length": 200
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
